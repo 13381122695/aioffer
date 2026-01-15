@@ -1,0 +1,25 @@
+# env
+.env
+.env.*
+
+# logs
+*.log
+logs/
+.logs/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+dist-ssr/
+
+# runtime data
+backend/uploads/
+backend/test.db
+
+# misc
+.DS_Store
