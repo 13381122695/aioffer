@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from config import settings
 from config.database import init_db
-from routers import auth, users, roles, menus, orders, external_systems
+from routers import auth, users, roles, menus, orders, external_systems, recharge
 from utils.logger import setup_logging
 
 
@@ -68,6 +68,7 @@ app.include_router(orders.router, prefix="/api/orders", tags=["订单管理"])
 app.include_router(
     external_systems.router, prefix="/api/external-systems", tags=["外部系统"]
 )
+app.include_router(recharge.router, prefix="/api/recharge", tags=["充值"])
 
 # 静态文件服务
 app.mount("/static", StaticFiles(directory="static"), name="static")

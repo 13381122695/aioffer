@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     port: int = 8000
     reload: bool = True
 
+    # 支付宝配置
+    alipay_app_id: Optional[str] = None
+    alipay_private_key_path: Optional[str] = None
+    alipay_alipay_public_key_path: Optional[str] = None
+    alipay_gateway: str = "https://openapi.alipay.com/gateway.do"
+    alipay_notify_url: Optional[str] = None
+    alipay_return_url: Optional[str] = None
+
     # 安全配置
     bcrypt_rounds: int = 12
     rate_limit: str = "100/minute"

@@ -425,53 +425,51 @@ async def cancel_order(
         return error("取消订单失败")
 
 
+PRODUCTS = [
+    {
+        "id": 1,
+        "name": "基础会员",
+        "type": "member",
+        "price": 99.00,
+        "description": "基础会员服务，有效期1个月",
+        "duration": 30,
+        "points": 1000,
+    },
+    {
+        "id": 2,
+        "name": "高级会员",
+        "type": "member",
+        "price": 199.00,
+        "description": "高级会员服务，有效期3个月",
+        "duration": 90,
+        "points": 3000,
+    },
+    {
+        "id": 3,
+        "name": "点数充值包",
+        "type": "points",
+        "price": 50.00,
+        "description": "500点数充值包",
+        "points": 500,
+    },
+    {
+        "id": 4,
+        "name": "大容量点数包",
+        "type": "points",
+        "price": 200.00,
+        "description": "2500点数充值包",
+        "points": 2500,
+    },
+]
+
+
 @router.get("/products/list", summary="获取产品列表")
 async def get_products(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(get_current_user),
 ):
-    """获取产品列表"""
     try:
-        # 模拟产品列表，实际项目中应该从数据库获取
-        products = [
-            {
-                "id": 1,
-                "name": "基础会员",
-                "type": "member",
-                "price": 99.00,
-                "description": "基础会员服务，有效期1个月",
-                "duration": 30,  # 天数
-                "points": 1000,
-            },
-            {
-                "id": 2,
-                "name": "高级会员",
-                "type": "member",
-                "price": 199.00,
-                "description": "高级会员服务，有效期3个月",
-                "duration": 90,  # 天数
-                "points": 3000,
-            },
-            {
-                "id": 3,
-                "name": "点数充值包",
-                "type": "points",
-                "price": 50.00,
-                "description": "500点数充值包",
-                "points": 500,
-            },
-            {
-                "id": 4,
-                "name": "大容量点数包",
-                "type": "points",
-                "price": 200.00,
-                "description": "2500点数充值包",
-                "points": 2500,
-            },
-        ]
-
-        return success(products, "获取产品列表成功")
-
+        return success(PRODUCTS, "获取产品列表成功")
     except Exception as e:
         logger.error(f"获取产品列表失败: {str(e)}")
         return error("获取产品列表失败")

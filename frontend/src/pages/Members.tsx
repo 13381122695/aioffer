@@ -5,10 +5,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Space, Input, Switch, Modal, Form, Avatar, Popconfirm, Card, App, Descriptions } from 'antd';
+import { Table, Button, Space, Input, Switch, Modal, Form, Avatar, Popconfirm, Card, App, Descriptions, List, Tag } from 'antd';
 import type { TablePaginationConfig } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined, UserOutlined, DollarOutlined } from '@ant-design/icons';
 import { getUserList, getCurrentUser, createUser, updateUser, deleteUser, rechargePoints, User, CreateUserParams, UpdateUserParams } from '@/services/user';
+import { getProducts, createAlipayRecharge, Product } from '@/services/orders';
 import MainLayout from '@/layouts/MainLayout';
 import { useAuthStore } from '@/stores/auth';
 
@@ -57,6 +58,8 @@ const Members: React.FC = () => {
   const { current, pageSize } = pagination;
   
   const [searchText, setSearchText] = useState('');
+  const [rechargeProducts, setRechargeProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   // 获取会员列表
   const fetchUsers = useCallback(async (params: { page?: number; size?: number; search?: string } = {}) => {
@@ -98,6 +101,26 @@ const Members: React.FC = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!isMemberMode) {
+        return;
+      }
+      try {
+        setLoadingProducts(true);
+        const products = await getProducts();
+        setRechargeProducts(products.filter((p) => p.type === 'points'));
+      } catch (error) {
+        console.error('获取充值套餐失败:', error);
+        message.error('获取充值套餐失败');
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    void loadProducts();
+  }, [isMemberMode, message]);
 
   /**
    * 处理搜索
@@ -141,6 +164,25 @@ const Members: React.FC = () => {
     } catch (error) {
       console.error('充值失败:', error);
       message.error('充值失败');
+    }
+  };
+
+  const handleAlipayRecharge = async (product: Product) => {
+    try {
+      const resp = await createAlipayRecharge({
+        product_id: product.id,
+        amount: product.price,
+        client_type: 'h5',
+      });
+      const targetUrl = resp.alipay_scheme || resp.pay_url;
+      if (targetUrl) {
+        window.location.href = targetUrl;
+      } else {
+        message.error('未获取到支付链接');
+      }
+    } catch (error) {
+      console.error('发起支付宝充值失败:', error);
+      message.error('发起支付宝充值失败');
     }
   };
 
@@ -396,25 +438,66 @@ const Members: React.FC = () => {
         </div>
 
         {isMemberMode ? (
-          <Card loading={loading}>
-            {currentAccount ? (
-              <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-                <Avatar size={72} src={currentAccount.avatar_url} icon={<UserOutlined />} />
-                <Descriptions column={2} bordered size="middle">
-                  <Descriptions.Item label="用户ID">{currentAccount.id}</Descriptions.Item>
-                  <Descriptions.Item label="用户名">{currentAccount.username}</Descriptions.Item>
-                  <Descriptions.Item label="邮箱">{currentAccount.email || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="手机号">{currentAccount.phone || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="点数">{authUser?.points ?? currentAccount.points ?? 0}</Descriptions.Item>
-                  <Descriptions.Item label="注册时间">
-                    {currentAccount.created_at ? new Date(currentAccount.created_at).toLocaleString() : '-'}
-                  </Descriptions.Item>
-                </Descriptions>
-              </div>
-            ) : (
-              <div>暂无账户信息</div>
-            )}
-          </Card>
+          <>
+            <Card loading={loading} style={{ marginBottom: 24 }}>
+              {currentAccount ? (
+                <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                  <Avatar size={72} src={currentAccount.avatar_url} icon={<UserOutlined />} />
+                  <Descriptions column={2} bordered size="middle">
+                    <Descriptions.Item label="用户ID">{currentAccount.id}</Descriptions.Item>
+                    <Descriptions.Item label="用户名">{currentAccount.username}</Descriptions.Item>
+                    <Descriptions.Item label="邮箱">{currentAccount.email || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="手机号">{currentAccount.phone || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="点数">{authUser?.points ?? currentAccount.points ?? 0}</Descriptions.Item>
+                    <Descriptions.Item label="注册时间">
+                      {currentAccount.created_at ? new Date(currentAccount.created_at).toLocaleString() : '-'}
+                    </Descriptions.Item>
+                  </Descriptions>
+                </div>
+              ) : (
+                <div>暂无账户信息</div>
+              )}
+            </Card>
+
+            <Card
+              title="点数充值"
+              loading={loadingProducts}
+            >
+              {rechargeProducts.length === 0 ? (
+                <div>暂无可用的充值套餐，请稍后再试。</div>
+              ) : (
+                <List
+                  dataSource={rechargeProducts}
+                  renderItem={(item) => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key="pay"
+                          type="primary"
+                          onClick={() => handleAlipayRecharge(item)}
+                        >
+                          支付宝支付
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={
+                          <Space>
+                            <span>{item.name}</span>
+                            <Tag color="blue">{item.points ?? 0} 点</Tag>
+                          </Space>
+                        }
+                        description={item.description || ''}
+                      />
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#fa541c' }}>
+                        ¥{item.price.toFixed(2)}
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </>
         ) : (
           <Table
             columns={columns}

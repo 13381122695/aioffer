@@ -56,6 +56,23 @@ export interface PaymentResponse {
   payment_id: string;
 }
 
+export interface Product {
+  id: number;
+  name: string;
+  type: string;
+  price: number;
+  description?: string;
+  duration?: number;
+  points?: number;
+}
+
+export interface AlipayRechargeResponse {
+  order_id: number;
+  order_no: string;
+  pay_url: string;
+  alipay_scheme?: string;
+}
+
 /**
  * 创建订单
  */
@@ -125,4 +142,16 @@ export const getPaymentConfig = async (): Promise<{
   config: Record<string, unknown>;
 }> => {
   return http.get('/orders/payment-config');
+};
+
+export const getProducts = async (): Promise<Product[]> => {
+  return http.get('/orders/products/list');
+};
+
+export const createAlipayRecharge = async (params: {
+  product_id: number;
+  amount?: number;
+  client_type?: 'pc' | 'h5';
+}): Promise<AlipayRechargeResponse> => {
+  return http.post('/recharge/alipay/create', params);
 };
