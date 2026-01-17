@@ -28,8 +28,13 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
     if " " in sign_str and "+" not in sign_str:
         sign_str = sign_str.replace(" ", "+")
 
+    sign_b64 = sign_str
+    pad_len = (-len(sign_b64)) % 4
+    if pad_len:
+        sign_b64 = sign_b64 + ("=" * pad_len)
+
     try:
-        sign_bytes = base64.b64decode(sign_str)
+        sign_bytes = base64.b64decode(sign_b64)
     except Exception as exc:
         logger.error(f"签名 base64 解码失败: {type(exc).__name__}: {exc!r}")
         return False
@@ -76,23 +81,14 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
 
         if sig is not None and "sign_type" in sig.parameters:
             try:
-                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes, sign_type=sign_type)
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_b64, sign_type=sign_type)
             except TypeError:
-                result = verify_with_rsa(alipay_public_key, message_bytes, sign_str, sign_type=sign_type)
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes, sign_type=sign_type)
         else:
             try:
-                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes)
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_b64)
             except TypeError:
-                result = verify_with_rsa(alipay_public_key, message_bytes, sign_str)
-
-        if result is False:
-            logger.warning("支付宝验签未通过")
-
-        return bool(result)
-    except Exception as exc:
-        logger.exception(f"验证支付宝签名失败: {type(exc).__name__}: {exc!r}")
-        return False
-
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes)
 
         if result is False:
             logger.warning("支付宝验签未通过")
