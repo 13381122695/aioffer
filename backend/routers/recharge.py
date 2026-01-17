@@ -101,12 +101,13 @@ async def create_alipay_recharge(
 
 
 @router.get("/alipay/return", summary="支付宝同步回调")
-async def alipay_return(request: Request):
+async def alipay_return(request: Request, db: AsyncSession = Depends(get_async_session)):
     params = dict(request.query_params)
     logger.info(f"支付宝同步回调参数: {params}")
 
+    out_trade_no = params.get("out_trade_no")
+
     if not verify_alipay_sign(params):
-        out_trade_no = params.get("out_trade_no")
         body = (
             "<h1>验签失败</h1>"
             "<p>同步回跳仅用于展示，支付结果请以订单状态/到账为准。</p>"
@@ -119,13 +120,31 @@ async def alipay_return(request: Request):
         logger.warning(f"同步回调 app_id 不匹配: {app_id}")
         return HTMLResponse("<h1>app_id 不匹配</h1>", status_code=400)
 
-    out_trade_no = params.get("out_trade_no")
     trade_status = params.get("trade_status")
 
-    if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+    order = None
+    if out_trade_no:
+        result = await db.execute(select(Order).where(Order.order_no == out_trade_no))
+        order = result.scalar_one_or_none()
+
+    if order and order.status == 2:
         body = f"<h1>支付成功</h1><p>订单号: {out_trade_no}</p>"
+    elif trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+        body = f"<h1>支付成功</h1><p>订单号: {out_trade_no}</p>"
+    elif order and order.status:
+        body = (
+            "<h1>支付处理中</h1>"
+            f"<p>订单号: {out_trade_no}</p>"
+            f"<p>订单状态: {order.status_text}</p>"
+            "<p>支付结果请以订单状态/到账为准。</p>"
+        )
     else:
-        body = f"<h1>支付未完成</h1><p>订单号: {out_trade_no}</p><p>状态: {trade_status}</p>"
+        body = (
+            "<h1>支付处理中</h1>"
+            f"<p>订单号: {out_trade_no}</p>"
+            f"<p>支付宝状态: {trade_status or '-'} </p>"
+            "<p>支付结果请以订单状态/到账为准。</p>"
+        )
 
     return HTMLResponse(body)
 
