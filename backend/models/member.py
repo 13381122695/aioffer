@@ -4,7 +4,7 @@
 用途: 会员信息和点数管理
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -45,7 +45,10 @@ class Member(Base):
         """会员是否已过期"""
         if not self.expired_at:
             return False
-        return datetime.now() > self.expired_at
+        expired_at = self.expired_at
+        if expired_at.tzinfo is None:
+            expired_at = expired_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) > expired_at
 
     @property
     def is_valid_member(self) -> bool:

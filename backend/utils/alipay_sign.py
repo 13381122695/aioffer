@@ -1,7 +1,5 @@
 from typing import Dict, Any
 
-from alipay.aop.api.util.SignatureUtils import verify_with_rsa
-
 from config import settings
 from utils.logger import get_logger
 
@@ -10,6 +8,12 @@ logger = get_logger(__name__)
 
 
 def verify_alipay_sign(params: Dict[str, Any]) -> bool:
+    try:
+        from alipay.aop.api.util.SignatureUtils import verify_with_rsa
+    except ModuleNotFoundError:
+        logger.error("未安装 alipay-sdk-python，无法进行验签")
+        return False
+
     params_copy = dict(params)
 
     sign = params_copy.pop("sign", None)
@@ -46,4 +50,3 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
     except Exception as exc:
         logger.error(f"验证支付宝签名失败: {exc}")
         return False
-

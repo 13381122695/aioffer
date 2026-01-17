@@ -1,6 +1,7 @@
 from typing import Optional
+from datetime import timedelta
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Request
@@ -50,11 +51,12 @@ async def create_alipay_recharge(
     if not product:
         return not_found("产品不存在")
 
-    if product.get("type") != "points":
-        return error("暂不支持该产品类型通过支付宝充值")
+    product_type = product.get("type")
+    if product_type not in ("points", "subscription"):
+        return error("暂不支持该产品类型通过支付宝购买")
 
-    price = float(product["price"])
-    if payload.amount is not None and float(payload.amount) != price:
+    price = Decimal(str(product["price"]))
+    if payload.amount is not None and Decimal(str(payload.amount)) != price:
         return error("金额与产品配置不一致")
 
     order_no = generate_order_no()
@@ -63,20 +65,21 @@ async def create_alipay_recharge(
         order_no=order_no,
         user_id=current_user.id,
         product_id=product["id"],
-        product_type=product["type"],
-        amount=Decimal(str(price)),
+        product_type=product_type,
+        amount=price,
         quantity=1,
         status=1,
-        description=f"支付宝充值：{product['name']}",
+        description=f"支付宝购买：{product['name']}",
     )
     db.add(order)
     await db.commit()
     await db.refresh(order)
 
     try:
+        total_amount = f"{price:.2f}"
         pay_url, alipay_scheme = build_pay_url(
             out_trade_no=order.order_no,
-            total_amount=f"{price:.2f}",
+            total_amount=total_amount,
             subject=product["name"],
             notify_url=settings.alipay_notify_url,
             return_url=settings.alipay_return_url,
@@ -174,9 +177,7 @@ async def alipay_notify(
         return PlainTextResponse("success")
 
     if trade_status not in ("TRADE_SUCCESS", "TRADE_FINISHED"):
-        logger.warning(
-            f"支付未成功，忽略通知: order_no={order.order_no}, status={trade_status}"
-        )
+        logger.warning(f"支付未成功，忽略通知: order_no={order.order_no}, status={trade_status}")
         return PlainTextResponse("failure")
 
     user = order.user
@@ -185,36 +186,82 @@ async def alipay_notify(
         logger.error(f"订单用户没有会员信息，无法发放积分: order_no={order.order_no}")
         return PlainTextResponse("failure")
 
-    product = next(
-        (p for p in PRODUCTS if p["id"] == order.product_id and p["type"] == "points"),
-        None,
-    )
-    if not product:
-        logger.error(f"无法找到订单对应的点数产品: order_id={order.id}")
+    awarded_points: Optional[int] = None
+    duration_days: Optional[int] = None
+
+    if order.product_type == "points":
+        product = next(
+            (
+                p
+                for p in PRODUCTS
+                if p["id"] == order.product_id and p["type"] == "points"
+            ),
+            None,
+        )
+        if not product:
+            logger.error(f"无法找到订单对应的点数产品: order_id={order.id}")
+            return PlainTextResponse("failure")
+
+        points = int(product.get("points", 0))
+        if points <= 0:
+            logger.error(f"点数产品配置不正确: product_id={product['id']}")
+            return PlainTextResponse("failure")
+
+        member.add_points(points)
+
+        transaction = PointTransaction(
+            user_id=user.id,
+            type=1,
+            points=points,
+            balance_after=member.points,
+            amount=order.amount,
+            description=f"支付宝充值：{order.order_no}",
+            related_id=order.id,
+            related_type="alipay",
+        )
+        db.add(transaction)
+        awarded_points = points
+    elif order.product_type == "subscription":
+        product = next(
+            (
+                p
+                for p in PRODUCTS
+                if p["id"] == order.product_id and p["type"] == "subscription"
+            ),
+            None,
+        )
+        if not product:
+            logger.error(f"无法找到订单对应的时长套餐: order_id={order.id}")
+            return PlainTextResponse("failure")
+
+        duration = int(product.get("duration", 0))
+        if duration <= 0:
+            logger.error(f"时长套餐配置不正确: product_id={product['id']}")
+            return PlainTextResponse("failure")
+
+        now = datetime.now(timezone.utc)
+        base = member.expired_at
+        if base is None:
+            base = now
+        else:
+            if base.tzinfo is None:
+                base = base.replace(tzinfo=timezone.utc)
+            if base < now:
+                base = now
+
+        member.expired_at = base + timedelta(days=duration)
+        if member.member_level < 2:
+            member.member_level = 2
+        duration_days = duration
+    else:
+        logger.error(
+            f"不支持的订单产品类型: order_id={order.id}, product_type={order.product_type}"
+        )
         return PlainTextResponse("failure")
-
-    points = int(product.get("points", 0))
-    if points <= 0:
-        logger.error(f"点数产品配置不正确: product_id={product['id']}")
-        return PlainTextResponse("failure")
-
-    member.add_points(points)
-
-    transaction = PointTransaction(
-        user_id=user.id,
-        type=1,
-        points=points,
-        balance_after=member.points,
-        amount=order.amount,
-        description=f"支付宝充值：{order.order_no}",
-        related_id=order.id,
-        related_type="alipay",
-    )
-    db.add(transaction)
 
     order.status = 2
     order.payment_method = "alipay"
-    order.payment_time = datetime.utcnow()
+    order.payment_time = datetime.now(timezone.utc)
 
     try:
         await db.commit()
@@ -223,8 +270,14 @@ async def alipay_notify(
         logger.error(f"支付宝异步通知处理失败: {exc}")
         return PlainTextResponse("failure")
 
-    logger.info(
-        f"支付宝异步通知处理成功: order_no={order.order_no}, points={points}, user_id={user.id}"
-    )
+    if awarded_points is not None:
+        logger.info(
+            f"支付宝异步通知处理成功: order_no={order.order_no}, points={awarded_points}, user_id={user.id}"
+        )
+    elif duration_days is not None:
+        logger.info(
+            f"支付宝异步通知处理成功: order_no={order.order_no}, duration_days={duration_days}, user_id={user.id}"
+        )
+    else:
+        logger.info(f"支付宝异步通知处理成功: order_no={order.order_no}, user_id={user.id}")
     return PlainTextResponse("success")
-

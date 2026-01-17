@@ -58,7 +58,8 @@ const Members: React.FC = () => {
   const { current, pageSize } = pagination;
   
   const [searchText, setSearchText] = useState('');
-  const [rechargeProducts, setRechargeProducts] = useState<Product[]>([]);
+  const [pointsProducts, setPointsProducts] = useState<Product[]>([]);
+  const [subscriptionProducts, setSubscriptionProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
   // 获取会员列表
@@ -110,7 +111,8 @@ const Members: React.FC = () => {
       try {
         setLoadingProducts(true);
         const products = await getProducts();
-        setRechargeProducts(products.filter((p) => p.type === 'points'));
+        setPointsProducts(products.filter((p) => p.type === 'points'));
+        setSubscriptionProducts(products.filter((p) => p.type === 'subscription'));
       } catch (error) {
         console.error('获取充值套餐失败:', error);
         message.error('获取充值套餐失败');
@@ -449,6 +451,11 @@ const Members: React.FC = () => {
                     <Descriptions.Item label="邮箱">{currentAccount.email || '-'}</Descriptions.Item>
                     <Descriptions.Item label="手机号">{currentAccount.phone || '-'}</Descriptions.Item>
                     <Descriptions.Item label="点数">{authUser?.points ?? currentAccount.points ?? 0}</Descriptions.Item>
+                  <Descriptions.Item label="会员到期">
+                    {currentAccount.member?.expired_at
+                      ? new Date(currentAccount.member.expired_at).toLocaleString()
+                      : '-'}
+                  </Descriptions.Item>
                     <Descriptions.Item label="注册时间">
                       {currentAccount.created_at ? new Date(currentAccount.created_at).toLocaleString() : '-'}
                     </Descriptions.Item>
@@ -463,11 +470,11 @@ const Members: React.FC = () => {
               title="点数充值"
               loading={loadingProducts}
             >
-              {rechargeProducts.length === 0 ? (
+              {pointsProducts.length === 0 ? (
                 <div>暂无可用的充值套餐，请稍后再试。</div>
               ) : (
                 <List
-                  dataSource={rechargeProducts}
+                  dataSource={pointsProducts}
                   renderItem={(item) => (
                     <List.Item
                       actions={[
@@ -485,6 +492,46 @@ const Members: React.FC = () => {
                           <Space>
                             <span>{item.name}</span>
                             <Tag color="blue">{item.points ?? 0} 点</Tag>
+                          </Space>
+                        }
+                        description={item.description || ''}
+                      />
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: '#fa541c' }}>
+                        ¥{item.price.toFixed(2)}
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+
+            <Card
+              title="时长套餐"
+              loading={loadingProducts}
+              style={{ marginTop: 24 }}
+            >
+              {subscriptionProducts.length === 0 ? (
+                <div>暂无可用的时长套餐，请稍后再试。</div>
+              ) : (
+                <List
+                  dataSource={subscriptionProducts}
+                  renderItem={(item) => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key="pay"
+                          type="primary"
+                          onClick={() => handleAlipayRecharge(item)}
+                        >
+                          支付宝支付
+                        </Button>,
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={
+                          <Space>
+                            <span>{item.name}</span>
+                            <Tag color="purple">{item.duration ?? 0} 天</Tag>
                           </Space>
                         }
                         description={item.description || ''}

@@ -34,7 +34,7 @@ aiofiles==23.2.1
 wechatpy==1.8.18
 
 # 支付宝SDK
-alipay-sdk-python==3.7.110
+alipay-sdk-python==3.7.868
 
 # 开发工具
 pytest==7.4.3

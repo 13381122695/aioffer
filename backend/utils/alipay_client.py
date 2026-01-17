@@ -1,11 +1,4 @@
-from typing import Optional, Tuple
-
-from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
-from alipay.aop.api.DefaultAlipayClient import DefaultAlipayClient
-from alipay.aop.api.request.AlipayTradePagePayRequest import AlipayTradePagePayRequest
-from alipay.aop.api.request.AlipayTradeWapPayRequest import AlipayTradeWapPayRequest
-from alipay.aop.api.domain.AlipayTradePagePayModel import AlipayTradePagePayModel
-from alipay.aop.api.domain.AlipayTradeWapPayModel import AlipayTradeWapPayModel
+from typing import Any, Optional, Tuple
 
 from config import settings
 from utils.logger import get_logger
@@ -13,13 +6,19 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_client: Optional[DefaultAlipayClient] = None
+_client: Optional[Any] = None
 
 
-def get_alipay_client() -> DefaultAlipayClient:
+def get_alipay_client() -> Any:
     global _client
     if _client is not None:
         return _client
+
+    try:
+        from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
+        from alipay.aop.api.DefaultAlipayClient import DefaultAlipayClient
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("未安装 alipay-sdk-python，请先安装依赖") from exc
 
     if (
         not settings.alipay_app_id
@@ -55,6 +54,20 @@ def build_pay_url(
     return_url: str,
     client_type: str = "h5",
 ) -> Tuple[str, Optional[str]]:
+    try:
+        from alipay.aop.api.request.AlipayTradePagePayRequest import (
+            AlipayTradePagePayRequest,
+        )
+        from alipay.aop.api.request.AlipayTradeWapPayRequest import (
+            AlipayTradeWapPayRequest,
+        )
+        from alipay.aop.api.domain.AlipayTradePagePayModel import (
+            AlipayTradePagePayModel,
+        )
+        from alipay.aop.api.domain.AlipayTradeWapPayModel import AlipayTradeWapPayModel
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("未安装 alipay-sdk-python，请先安装依赖") from exc
+
     client = get_alipay_client()
 
     if client_type == "pc":
@@ -93,4 +106,3 @@ def build_pay_url(
         )
 
     return pay_url, alipay_scheme
-

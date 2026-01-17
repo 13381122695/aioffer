@@ -23,7 +23,7 @@ export interface User {
     member_level: number;
     points: number;
     balance: number;
-    expired_at: string;
+    expired_at: string | null;
     is_expired: boolean;
     is_valid_member: boolean;
   };
