@@ -92,7 +92,7 @@ async def test_create_alipay_recharge_returns_pay_url(
 
     resp = await client.post(
         "/api/recharge/alipay/create",
-        json={"product_id": 5, "amount": 5.00, "client_type": "h5"},
+        json={"product_id": 5, "amount": 0.01, "client_type": "h5"},
     )
     body = resp.json()
     assert body["code"] == 200
@@ -138,7 +138,7 @@ async def test_alipay_notify_is_idempotent_and_adds_points(
             user_id=user.id,
             product_id=5,
             product_type="points",
-            amount=5.00,
+            amount=0.01,
             quantity=1,
             status=1,
             description="支付宝充值：小额体验包",
@@ -150,7 +150,7 @@ async def test_alipay_notify_is_idempotent_and_adds_points(
         "app_id": "test-app-id",
         "out_trade_no": "ORDER_NO_IDEMPOTENT",
         "trade_status": "TRADE_SUCCESS",
-        "total_amount": "5.00",
+        "total_amount": "0.01",
         "sign": "dummy",
         "sign_type": "RSA2",
     }
@@ -212,7 +212,7 @@ async def test_alipay_notify_subscription_sets_expired_at(
             user_id=user.id,
             product_id=6,
             product_type="subscription",
-            amount=15.00,
+            amount=0.01,
             quantity=1,
             status=1,
             description="支付宝购买：15日套餐",
@@ -224,7 +224,7 @@ async def test_alipay_notify_subscription_sets_expired_at(
         "app_id": "test-app-id",
         "out_trade_no": "ORDER_NO_SUBSCRIPTION",
         "trade_status": "TRADE_SUCCESS",
-        "total_amount": "15.00",
+        "total_amount": "0.01",
         "sign": "dummy",
         "sign_type": "RSA2",
     }
