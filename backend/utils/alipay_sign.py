@@ -56,7 +56,10 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
         )
 
     try:
-        return verify_with_rsa(alipay_public_key, content, sign, sign_type=sign_type)
+        try:
+            return verify_with_rsa(alipay_public_key, content, sign, "RSA2")
+        except TypeError:
+            return verify_with_rsa(alipay_public_key, content, sign, sign_type="RSA2")
     except Exception as exc:
         logger.error(f"验证支付宝签名失败: {exc}")
         return False
