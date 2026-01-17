@@ -170,18 +170,34 @@ const Members: React.FC = () => {
   };
 
   const handleAlipayRecharge = async (product: Product) => {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+
     try {
       const resp = await createAlipayRecharge({
         product_id: product.id,
         amount: product.price,
-        client_type: 'h5',
+        client_type: isMobile ? 'h5' : 'pc',
       });
-      const targetUrl = resp.alipay_scheme || resp.pay_url;
-      if (targetUrl) {
-        window.location.href = targetUrl;
-      } else {
-        message.error('未获取到支付链接');
+
+      if (isMobile && resp.alipay_scheme) {
+        window.location.href = resp.alipay_scheme;
+
+        window.setTimeout(() => {
+          if (document.visibilityState === 'visible' && resp.pay_url) {
+            window.location.href = resp.pay_url;
+          }
+        }, 800);
+
+        return;
       }
+
+      if (resp.pay_url) {
+        window.location.href = resp.pay_url;
+        return;
+      }
+
+      message.error('未获取到支付链接');
     } catch (error) {
       console.error('发起支付宝充值失败:', error);
       message.error('发起支付宝充值失败');
