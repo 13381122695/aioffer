@@ -1,3 +1,4 @@
+import base64
 from typing import Dict, Any
 
 from config import settings
@@ -23,7 +24,15 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
         logger.warning("签名为空")
         return False
 
-    sign = str(sign).strip()
+    sign_str = str(sign).strip()
+    if " " in sign_str and "+" not in sign_str:
+        sign_str = sign_str.replace(" ", "+")
+
+    try:
+        sign_bytes = base64.b64decode(sign_str)
+    except Exception as exc:
+        logger.error(f"签名 base64 解码失败: {type(exc).__name__}: {exc!r}")
+        return False
 
     items = []
     for key in sorted(params_copy.keys()):
@@ -55,6 +64,9 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
 
     sign_type = str(sign_type).strip().upper() or "RSA2"
 
+    public_key_bytes = alipay_public_key.encode("utf-8")
+    message_bytes = content.encode("utf-8")
+
     try:
         import inspect
 
@@ -65,23 +77,21 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
 
         if sig is not None and "sign_type" in sig.parameters:
             result = verify_with_rsa(
-                alipay_public_key,
-                content,
-                sign,
+                public_key_bytes,
+                message_bytes,
+                sign_bytes,
                 sign_type=sign_type,
             )
         else:
             try:
-                result = verify_with_rsa(alipay_public_key, content, sign, sign_type)
+                result = verify_with_rsa(public_key_bytes, message_bytes, sign_bytes, sign_type)
             except TypeError:
-                result = verify_with_rsa(alipay_public_key, content, sign)
+                result = verify_with_rsa(public_key_bytes, message_bytes, sign_bytes)
 
         if result is False:
             logger.warning("支付宝验签未通过")
 
         return bool(result)
     except Exception as exc:
-        logger.exception(
-            f"验证支付宝签名失败: {type(exc).__name__}: {exc!r}"
-        )
+        logger.exception(f"验证支付宝签名失败: {type(exc).__name__}: {exc!r}")
         return False
