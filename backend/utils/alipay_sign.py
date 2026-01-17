@@ -17,11 +17,13 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
     params_copy = dict(params)
 
     sign = params_copy.pop("sign", None)
-    params_copy.pop("sign_type", None)
+    sign_type = params_copy.pop("sign_type", None) or "RSA2"
 
     if not sign:
         logger.warning("签名为空")
         return False
+
+    sign = str(sign).strip()
 
     items = []
     for key in sorted(params_copy.keys()):
@@ -45,8 +47,16 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
         logger.error(f"读取支付宝公钥失败: {exc}")
         return False
 
+    alipay_public_key = alipay_public_key.lstrip("\ufeff").strip()
+    if "BEGIN PUBLIC KEY" not in alipay_public_key:
+        alipay_public_key = (
+            "-----BEGIN PUBLIC KEY-----\n"
+            + alipay_public_key
+            + "\n-----END PUBLIC KEY-----"
+        )
+
     try:
-        return verify_with_rsa(alipay_public_key, content, sign, sign_type="RSA2")
+        return verify_with_rsa(alipay_public_key, content, sign, sign_type=sign_type)
     except Exception as exc:
         logger.error(f"验证支付宝签名失败: {exc}")
         return False

@@ -106,7 +106,13 @@ async def alipay_return(request: Request):
     logger.info(f"支付宝同步回调参数: {params}")
 
     if not verify_alipay_sign(params):
-        return HTMLResponse("<h1>验签失败</h1>", status_code=400)
+        out_trade_no = params.get("out_trade_no")
+        body = (
+            "<h1>验签失败</h1>"
+            "<p>同步回跳仅用于展示，支付结果请以订单状态/到账为准。</p>"
+            f"<p>订单号: {out_trade_no or '-'} </p>"
+        )
+        return HTMLResponse(body)
 
     app_id = params.get("app_id")
     if app_id and settings.alipay_app_id and app_id != settings.alipay_app_id:
