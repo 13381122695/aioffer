@@ -48,12 +48,12 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
         return False
 
     alipay_public_key = alipay_public_key.lstrip("\ufeff").strip()
-    if "BEGIN PUBLIC KEY" not in alipay_public_key:
+    if "BEGIN" not in alipay_public_key:
         alipay_public_key = (
-            "-----BEGIN PUBLIC KEY-----\n"
-            + alipay_public_key
-            + "\n-----END PUBLIC KEY-----"
+            "-----BEGIN PUBLIC KEY-----\n" + alipay_public_key + "\n-----END PUBLIC KEY-----"
         )
+
+    sign_type = str(sign_type).strip().upper() or "RSA2"
 
     try:
         import inspect
@@ -64,15 +64,24 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
             sig = None
 
         if sig is not None and "sign_type" in sig.parameters:
-            return verify_with_rsa(alipay_public_key, content, sign, sign_type=sign_type)
+            result = verify_with_rsa(
+                alipay_public_key,
+                content,
+                sign,
+                sign_type=sign_type,
+            )
+        else:
+            try:
+                result = verify_with_rsa(alipay_public_key, content, sign, sign_type)
+            except TypeError:
+                result = verify_with_rsa(alipay_public_key, content, sign)
 
-        if sig is not None and len(sig.parameters) <= 3:
-            return verify_with_rsa(alipay_public_key, content, sign)
+        if result is False:
+            logger.warning("支付宝验签未通过")
 
-        try:
-            return verify_with_rsa(alipay_public_key, content, sign, sign_type)
-        except TypeError:
-            return verify_with_rsa(alipay_public_key, content, sign)
+        return bool(result)
     except Exception as exc:
-        logger.error(f"验证支付宝签名失败: {exc}")
+        logger.exception(
+            f"验证支付宝签名失败: {type(exc).__name__}: {exc!r}"
+        )
         return False
