@@ -64,7 +64,6 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
 
     sign_type = str(sign_type).strip().upper() or "RSA2"
 
-    public_key_bytes = alipay_public_key.encode("utf-8")
     message_bytes = content.encode("utf-8")
 
     try:
@@ -76,17 +75,24 @@ def verify_alipay_sign(params: Dict[str, Any]) -> bool:
             sig = None
 
         if sig is not None and "sign_type" in sig.parameters:
-            result = verify_with_rsa(
-                public_key_bytes,
-                message_bytes,
-                sign_bytes,
-                sign_type=sign_type,
-            )
+            try:
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes, sign_type=sign_type)
+            except TypeError:
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_str, sign_type=sign_type)
         else:
             try:
-                result = verify_with_rsa(public_key_bytes, message_bytes, sign_bytes, sign_type)
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_bytes)
             except TypeError:
-                result = verify_with_rsa(public_key_bytes, message_bytes, sign_bytes)
+                result = verify_with_rsa(alipay_public_key, message_bytes, sign_str)
+
+        if result is False:
+            logger.warning("支付宝验签未通过")
+
+        return bool(result)
+    except Exception as exc:
+        logger.exception(f"验证支付宝签名失败: {type(exc).__name__}: {exc!r}")
+        return False
+
 
         if result is False:
             logger.warning("支付宝验签未通过")
